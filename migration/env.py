@@ -3,15 +3,16 @@ import logging
 
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.ext.asyncio import AsyncEngine
+from tenacity import before_sleep_log, retry, wait_exponential
 
 # init metadata
 from alembic import context
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-from src.project.core.config import settings
-from src.project.infrastructure.postgres.database import metadata
-from src.project.infrastructure.postgres.models import *  # noqa
+from project.core.config import settings
+from project.infrastructure.postgres.database import metadata
+from project.infrastructure.postgres.models import *  # noqa
 
 CREATE_SCHEMA_QUERY = f"CREATE SCHEMA IF NOT EXISTS {settings.POSTGRES_SCHEMA};"
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
-# target_metadata = mymodel.Base.metadatas
+# target_metadata = mymodel.Base.metadata
 target_metadata = metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -78,6 +79,10 @@ def do_run_migrations(connection):
         context.run_migrations()
 
 
+@retry(
+    wait=wait_exponential(multiplier=1, min=settings.POSTGRES_RECONNECT_INTERVAL_SEC, max=10),
+    before_sleep=before_sleep_log(logger, logging.ERROR),
+)
 async def run_migrations_online(engine: AsyncEngine):
     """Run migrations in 'online' mode.
 
