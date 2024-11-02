@@ -4,7 +4,7 @@ RUN apt-get update && apt install -y curl libsm6 libxext6 ffmpeg libfontconfig1 
 RUN curl -sSL https://install.python-poetry.org | python
 ENV PATH="${PATH}:/root/.local/bin"
 COPY ./src /app/src
-COPY migrations /app/migrations
+COPY migration /app/migration
 COPY alembic.ini /app/
 COPY pyproject.toml /app/
 ENV PYTHONPATH /app/src

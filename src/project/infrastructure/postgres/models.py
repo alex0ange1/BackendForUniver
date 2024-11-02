@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import Date
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.project.infrastructure.postgres.database import Base
+from project.infrastructure.postgres.database import Base
 
 
 class Clients(Base):

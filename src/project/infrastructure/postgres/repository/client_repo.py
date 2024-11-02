@@ -3,13 +3,13 @@ from typing import Type
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 
-from src.project.schemas.clients import ClientsSchema, ClientCreateSchema
-from src.project.infrastructure.postgres.models import Clients
+from project.schemas.clients import ClientsSchema, ClientCreateSchema
+from project.infrastructure.postgres.models import Clients
 
-from src.project.core.config import settings
+from project.core.config import settings
 
 
-class UserRepository:
+class ClientRepository:
     _collection: Type[Clients] = Clients
 
     async def check_connection(self, session: AsyncSession) -> bool:
@@ -20,8 +20,8 @@ class UserRepository:
 
     async def get_all_clients(self, session: AsyncSession) -> list[ClientsSchema]:
         query = f"select * from {settings.POSTGRES_SCHEMA}.clients_list;"
-        users = await session.execute(text(query))
-        return [ClientsSchema.model_validate(obj=user) for user in users.mappings().all()]
+        clients = await session.execute(text(query))
+        return [ClientsSchema.model_validate(obj=client) for client in clients.mappings().all()]
 
 
     async def add_client(self, client: ClientCreateSchema, session: AsyncSession) -> ClientsSchema:

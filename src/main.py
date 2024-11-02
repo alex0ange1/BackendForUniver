@@ -5,8 +5,8 @@ import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from src.project.core.config import settings
-from src.project.api.handlers import router
+from project.core.config import settings
+from project.api.handlers import router
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(router, prefix="/api", tags=["User APIs"])
+    app.include_router(router, prefix="/api", tags=["Client APIs"])
 
     return app
 
