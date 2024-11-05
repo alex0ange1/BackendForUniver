@@ -25,7 +25,6 @@ class ClientRepository:
 
 
     async def add_client(self, client: ClientCreateSchema, session: AsyncSession) -> ClientsSchema:
-        # Создание нового клиента
         new_client = self._collection(**client.dict())
         session.add(new_client)
         await session.commit()
