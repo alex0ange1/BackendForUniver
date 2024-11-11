@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey
+from sqlalchemy import Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from project.infrastructure.postgres.database import Base
@@ -38,21 +38,21 @@ class Workers(Base):
 class Parts(Base):
     __tablename__ = "parts_list"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
     country_of_manufacture: Mapped[str] = mapped_column(nullable=False)
     purchase_price: Mapped[int] = mapped_column(nullable=False)
-    selling_price: Mapped[int] = mapped_column(nullable=False)
+    selling_price: Mapped[int] = mapped_column(nullable=False, unique=True)
     status: Mapped[str] = mapped_column(nullable=False)
     quantity_in_stock: Mapped[int] = mapped_column(nullable=False)
 
 
-class Services(Base):
-    __tablename__ = "services"
+class Service(Base):
+    __tablename__ = "service"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
-    service_cost: Mapped[int] = mapped_column(nullable=False)
+    service_cost: Mapped[int] = mapped_column(nullable=False, unique=True)
     part_id: Mapped[int] = mapped_column(ForeignKey("parts_list.id"), nullable=True)
 
 
@@ -63,6 +63,10 @@ class CarsStatus(Base):
     car_sts: Mapped[str] = mapped_column(ForeignKey("cars_list.sts"), nullable=False)
     owner_id: Mapped[int] = mapped_column(ForeignKey("clients_list.id"), nullable=False)
     cost_of_provided_services: Mapped[int] = mapped_column(nullable=False)
+    __table_args__ = (
+        UniqueConstraint('car_sts', name='uq_car_sts'),
+        UniqueConstraint('owner_id', name='uq_owner_id'),
+    )
 
 
 class WorkersAbleToProvideService(Base):
@@ -85,9 +89,9 @@ class Receipt(Base):
     __tablename__ = "receipt"
 
     service_receipt_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    client_id: Mapped[int] = mapped_column(ForeignKey("cars_status.owner_id"), nullable=False)
-    car_sts: Mapped[int] = mapped_column(ForeignKey("cars_status.car_sts"), nullable=False)
-    date: Mapped[int] = mapped_column(nullable=False)
+    client_id: Mapped[int] = mapped_column(ForeignKey("clients_list.id"), nullable=False)
+    car_sts: Mapped[str] = mapped_column(ForeignKey("cars_list.sts"), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
     cost: Mapped[int] = mapped_column(nullable=False)
 
 
