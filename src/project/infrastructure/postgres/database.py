@@ -10,7 +10,7 @@ from project.core.config import settings
 
 class PostgresDatabase:
     def __init__(self) -> None:
-        self._engine = create_async_engine(settings.postgres_url)
+        self._engine = create_async_engine(settings.postgres_url, echo=True)
         self._session_factory = async_sessionmaker(
             bind=self._engine,
             autocommit=False,
