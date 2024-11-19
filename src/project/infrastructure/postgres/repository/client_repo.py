@@ -32,7 +32,6 @@ class ClientRepository:
         return ClientsSchema.model_validate(new_client)
 
     async def delete_client(self, client_id: int, session: AsyncSession) -> bool:
-        # Поиск клиента по идентификатору
         query = select(self._collection).where(self._collection.id == client_id)
         result = await session.execute(query)
         client = result.scalar_one_or_none()
@@ -42,7 +41,6 @@ class ClientRepository:
         return True
 
     async def get_client_by_id(self, client_id: int, session: AsyncSession) -> ClientsSchema:
-        # Поиск клиента по идентификатору
         query = select(self._collection).where(self._collection.id == client_id)
         result = await session.execute(query)
         client = result.scalar_one_or_none()
