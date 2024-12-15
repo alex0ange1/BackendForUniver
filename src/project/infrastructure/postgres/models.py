@@ -35,6 +35,19 @@ class Workers(Base):
     salary: Mapped[int] = mapped_column(nullable=False)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    first_name: Mapped[str] = mapped_column(nullable=False)
+    last_name: Mapped[str] = mapped_column(nullable=False)
+    date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
+    email: Mapped[str] = mapped_column(nullable=False, unique=True)
+    password: Mapped[str] = mapped_column(nullable=False)
+    phone_number: Mapped[str] = mapped_column(nullable=True)
+    is_admin: Mapped[bool] = mapped_column(default=False)
+
+
 class Parts(Base):
     __tablename__ = "parts_list"
 

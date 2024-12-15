@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from project.infrastructure.postgres.repository.client_repo import ClientRepository
 from project.infrastructure.postgres.repository.car_repo import CarRepository
 from project.infrastructure.postgres.repository.part_repo import PartRepository
@@ -8,13 +8,16 @@ from project.infrastructure.postgres.repository.car_status_repo import CarsStatu
 from project.infrastructure.postgres.repository.service_receipt_repo import ServiceReceiptRepository
 from project.infrastructure.postgres.repository.parts_4_car_repo import PartsForCarRepository
 from project.infrastructure.postgres.repository.receipt_repo import ReceiptRepository
+from project.infrastructure.postgres.repository.user_repo import UserRepository
 from project.infrastructure.postgres.repository.workers_able_service_repo import WorkersAbleToProvideServiceRepository
 
 from project.infrastructure.postgres.database import PostgresDatabase
+from project.resource.auth import get_password_hash, allow_only_admin
 
 from project.schemas.clients import ClientsSchema, ClientCreateSchema
 from project.schemas.cars import CarsSchema, CarsCreateSchema
 from project.schemas.parts import PartsSchema, PartsCreateSchema
+from project.schemas.users import UserSchema, UserCreateUpdateSchema, UserLoginSchema
 from project.schemas.workers import WorkersSchema, WorkersCreateSchema
 from project.schemas.services import ServiceSchema, ServiceCreateSchema
 from project.schemas.cars_status import CarsStatusSchema, CarsStatusCreateSchema
@@ -22,9 +25,54 @@ from project.schemas.service_receipts import ServiceReceiptSchema, ServiceReceip
 from project.schemas.parts_for_car import PartsForCarSchema, PartsForCarCreateSchema
 from project.schemas.receipts import ReceiptSchema, ReceiptCreateSchema
 from project.schemas.worker_able_service \
-    import WorkersAbleToProvideServiceSchema, WorkersAbleToProvideServiceCreateSchema
+import WorkersAbleToProvideServiceSchema, WorkersAbleToProvideServiceCreateSchema
 
 router = APIRouter()
+
+
+@router.post("/register", response_model=UserSchema)
+
+async def register(user: UserCreateUpdateSchema) -> UserSchema:
+    users_repo = UserRepository()
+    database = PostgresDatabase()
+    client_repo = ClientRepository()
+
+    async with database.session() as session:
+        await users_repo.check_connection(session=session)
+
+        try:
+            password_hash = get_password_hash(user.password)
+            user.password = password_hash
+            new_user = await users_repo.create_user(session=session, user=user)
+            print(password_hash)
+            client_data = ClientCreateSchema(
+                full_name = f"{user.first_name} {user.last_name}",
+                date_of_birth = f"{user.date_of_birth}",
+                phone_number = user.phone_number,
+                total_amount_of_work = 0
+           )
+            await client_repo.add_client(client=client_data, session=session)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    return new_user
+
+
+@router.post("/login")
+async def login(user: UserLoginSchema) -> dict:
+    users_repo = UserRepository()
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        await users_repo.check_connection(session=session)
+
+        try:
+            auth_response = await users_repo.login(session=session, email=user.email, password=user.password)
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=str(e))
+
+    return auth_response
+
 
 
 @router.get("/all_clients", response_model=list[ClientsSchema])
@@ -49,13 +97,13 @@ async def get_client_by_id(client_id: int) -> ClientsSchema:
         user = await client_repo.get_client_by_id(client_id=client_id, session=session)
 
         if user is None:
-            raise HTTPException(status_code=404, detail="User  not found")
+            raise HTTPException(status_code=404, detail="User not found")
 
     return user
 
 
 @router.post("/add_client", response_model=ClientsSchema)
-async def add_client(client: ClientCreateSchema) -> ClientsSchema:
+async def add_client(client: ClientCreateSchema, current_user: dict = Depends(allow_only_admin)) -> ClientsSchema:
     client_repo = ClientRepository()
     database = PostgresDatabase()
 
@@ -67,7 +115,7 @@ async def add_client(client: ClientCreateSchema) -> ClientsSchema:
 
 
 @router.delete("/delete_client/{client_id}", response_model=dict)
-async def delete_client(client_id: int) -> dict:
+async def delete_client(client_id: int, current_user: dict = Depends(allow_only_admin)) -> dict:
     client_repo = ClientRepository()
     database = PostgresDatabase()
 
@@ -109,7 +157,7 @@ async def get_car_by_id(car_id: int) -> CarsSchema:
 
 
 @router.post("/add_car", response_model=CarsSchema)
-async def add_client(car: CarsCreateSchema) -> CarsSchema:
+async def add_car(car: CarsCreateSchema, current_user: dict = Depends(allow_only_admin)) -> CarsSchema:
     car_repo = CarRepository()
     database = PostgresDatabase()
 
@@ -121,7 +169,7 @@ async def add_client(car: CarsCreateSchema) -> CarsSchema:
 
 
 @router.delete("/delete_car/{car_id}", response_model=dict)
-async def delete_client(car_id: int) -> dict:
+async def delete_car(car_id: int, current_user: dict = Depends(allow_only_admin)) -> dict:
     car_repo = CarRepository()
     database = PostgresDatabase()
 
@@ -133,6 +181,7 @@ async def delete_client(car_id: int) -> dict:
             raise HTTPException(status_code=404, detail="Car not found")
 
     return {"detail": "Car deleted successfully"}
+
 
 @router.get("/all_workers", response_model=list[WorkersSchema])
 async def get_all_workers() -> list[WorkersSchema]:
@@ -161,8 +210,26 @@ async def get_worker_by_id(worker_id: int) -> WorkersSchema:
     return worker
 
 
+@router.delete("/delete_worker/{worker_id}", response_model=WorkersSchema)
+async def delete_worker(worker_id: int, current_user: dict = Depends(allow_only_admin)) -> WorkersSchema:
+    worker_repo = WorkerRepository()
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        await worker_repo.check_connection(session=session)
+
+        worker = await worker_repo.get_worker_by_id(worker_id=worker_id, session=session)
+
+        if worker is None:
+            raise HTTPException(status_code=404, detail="Worker not found")
+
+        await worker_repo.delete_worker(worker_id=worker_id, session=session)
+
+    return worker
+
+
 @router.post("/add_worker", response_model=WorkersSchema)
-async def add_worker(worker: WorkersCreateSchema) -> WorkersSchema:
+async def add_worker(worker: WorkersCreateSchema, current_user: dict = Depends(allow_only_admin)) -> WorkersSchema:
     worker_repo = WorkerRepository()
     database = PostgresDatabase()
 
@@ -171,6 +238,7 @@ async def add_worker(worker: WorkersCreateSchema) -> WorkersSchema:
         new_worker = await worker_repo.add_worker(worker=worker, session=session)
 
     return new_worker
+
 
 @router.get("/all_parts", response_model=list[PartsSchema])
 async def get_all_parts() -> list[PartsSchema]:
@@ -200,7 +268,7 @@ async def get_part_by_id(part_id: int) -> PartsSchema:
 
 
 @router.post("/add_part", response_model=PartsSchema)
-async def add_part(part: PartsCreateSchema) -> PartsSchema:
+async def add_part(part: PartsCreateSchema, current_user: dict = Depends(allow_only_admin)) -> PartsSchema:
     parts_repo = PartRepository()
     database = PostgresDatabase()
 
@@ -212,7 +280,7 @@ async def add_part(part: PartsCreateSchema) -> PartsSchema:
 
 
 @router.delete("/delete_part/{part_id}", response_model=dict)
-async def delete_part(part_id: int) -> dict:
+async def delete_part(part_id: int, current_user: dict = Depends(allow_only_admin)) -> dict:
     parts_repo = PartRepository()
     database = PostgresDatabase()
 
@@ -254,7 +322,7 @@ async def get_service_by_id(service_id: int) -> ServiceSchema:
 
 
 @router.post("/add_service", response_model=ServiceSchema)
-async def add_service(service: ServiceCreateSchema) -> ServiceSchema:
+async def add_service(service: ServiceCreateSchema, current_user: dict = Depends(allow_only_admin)) -> ServiceSchema:
     service_repo = ServiceRepository()
     database = PostgresDatabase()
 
@@ -266,7 +334,7 @@ async def add_service(service: ServiceCreateSchema) -> ServiceSchema:
 
 
 @router.delete("/delete_service/{service_id}", response_model=dict)
-async def delete_service(service_id: int) -> dict:
+async def delete_service(service_id: int, current_user: dict = Depends(allow_only_admin)) -> dict:
     service_repo = ServiceRepository()
     database = PostgresDatabase()
 
@@ -308,7 +376,7 @@ async def get_car_status_by_id(status_id: int) -> CarsStatusSchema:
 
 
 @router.post("/add_car_status", response_model=CarsStatusSchema)
-async def add_car_status(car_status: CarsStatusCreateSchema) -> CarsStatusSchema:
+async def add_car_status(car_status: CarsStatusCreateSchema, current_user: dict = Depends(allow_only_admin)) -> CarsStatusSchema:
     cars_status_repo = CarsStatusRepository()
     database = PostgresDatabase()
 
@@ -320,7 +388,7 @@ async def add_car_status(car_status: CarsStatusCreateSchema) -> CarsStatusSchema
 
 
 @router.delete("/delete_car_status/{status_id}", response_model=dict)
-async def delete_car_status(status_id: int) -> dict:
+async def delete_car_status(status_id: int, current_user: dict = Depends(allow_only_admin)) -> dict:
     cars_status_repo = CarsStatusRepository()
     database = PostgresDatabase()
 
@@ -362,7 +430,8 @@ async def get_worker_able_by_id(worker_able_id: int) -> WorkersAbleToProvideServ
 
 
 @router.post("/add_worker_able_to_provide_service", response_model=WorkersAbleToProvideServiceSchema)
-async def add_worker_able_to_provide_service(worker_able: WorkersAbleToProvideServiceCreateSchema) -> WorkersAbleToProvideServiceSchema:
+async def add_worker_able_to_provide_service(worker_able: WorkersAbleToProvideServiceCreateSchema
+                                            , current_user: dict = Depends(allow_only_admin)) -> WorkersAbleToProvideServiceSchema:
     workers_able_repo = WorkersAbleToProvideServiceRepository()
     database = PostgresDatabase()
 
@@ -374,7 +443,8 @@ async def add_worker_able_to_provide_service(worker_able: WorkersAbleToProvideSe
 
 
 @router.delete("/delete_worker_able_to_provide_service/{worker_able_id}", response_model=dict)
-async def delete_worker_able_to_provide_service(worker_able_id: int) -> dict:
+async def delete_worker_able_to_provide_service(worker_able_id: int
+                                                , current_user: dict = Depends(allow_only_admin)) -> dict:
     workers_able_repo = WorkersAbleToProvideServiceRepository()
     database = PostgresDatabase()
 
@@ -416,7 +486,8 @@ async def get_part_for_car_by_id(part_for_car_id: int) -> PartsForCarSchema:
 
 
 @router.post("/add_part_for_car", response_model=PartsForCarSchema)
-async def add_part_for_car(part_for_car: PartsForCarCreateSchema) -> PartsForCarSchema:
+async def add_part_for_car(part_for_car: PartsForCarCreateSchema,
+                           current_user: dict = Depends(allow_only_admin)) -> PartsForCarSchema:
     parts_for_car_repo = PartsForCarRepository()
     database = PostgresDatabase()
 
@@ -428,7 +499,8 @@ async def add_part_for_car(part_for_car: PartsForCarCreateSchema) -> PartsForCar
 
 
 @router.delete("/delete_part_for_car/{part_for_car_id}", response_model=dict)
-async def delete_part_for_car(part_for_car_id: int) -> dict:
+async def delete_part_for_car(part_for_car_id: int,
+                              current_user: dict = Depends(allow_only_admin)) -> dict:
     parts_for_car_repo = PartsForCarRepository()
     database = PostgresDatabase()
 
@@ -470,7 +542,8 @@ async def get_receipt_by_id(receipt_id: int) -> ReceiptSchema:
 
 
 @router.post("/add_receipt", response_model=ReceiptSchema)
-async def add_receipt(receipt: ReceiptCreateSchema) -> ReceiptSchema:
+async def add_receipt(receipt: ReceiptCreateSchema,
+                      current_user: dict = Depends(allow_only_admin)) -> ReceiptSchema:
     receipt_repo = ReceiptRepository()
     database = PostgresDatabase()
 
@@ -482,7 +555,8 @@ async def add_receipt(receipt: ReceiptCreateSchema) -> ReceiptSchema:
 
 
 @router.delete("/delete_receipt/{receipt_id}", response_model=dict)
-async def delete_receipt(receipt_id: int) -> dict:
+async def delete_receipt(receipt_id: int,
+                         current_user: dict = Depends(allow_only_admin)) -> dict:
     receipt_repo = ReceiptRepository()
     database = PostgresDatabase()
 
@@ -524,7 +598,8 @@ async def get_service_receipt_by_id(service_receipt_id: int) -> ServiceReceiptSc
 
 
 @router.post("/add_service_receipt", response_model=ServiceReceiptSchema)
-async def add_service_receipt(service_receipt: ServiceReceiptCreateSchema) -> ServiceReceiptSchema:
+async def add_service_receipt(service_receipt: ServiceReceiptCreateSchema,
+                              current_user: dict = Depends(allow_only_admin)) -> ServiceReceiptSchema:
     service_receipt_repo = ServiceReceiptRepository()
     database = PostgresDatabase()
 
@@ -536,7 +611,8 @@ async def add_service_receipt(service_receipt: ServiceReceiptCreateSchema) -> Se
 
 
 @router.delete("/delete_service_receipt/{service_receipt_id}", response_model=dict)
-async def delete_service_receipt(service_receipt_id: int) -> dict:
+async def delete_service_receipt(service_receipt_id: int,
+                                 current_user: dict = Depends(allow_only_admin)) -> dict:
     service_receipt_repo = ServiceReceiptRepository()
     database = PostgresDatabase()
 

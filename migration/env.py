@@ -22,6 +22,8 @@ config = context.config
 # This line sets up loggers basically.
 logger = logging.getLogger(__name__)
 
+config.set_main_option("sqlalchemy.url", settings.postgres_url)
+
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
@@ -32,14 +34,6 @@ target_metadata = metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
-
-config.set_main_option("sqlalchemy.url", settings.postgres_url)
-
-
-def filter_foreign_schemas(name, type_, parent_names):
-    return type_ != "schema" or name == settings.POSTGRES_SCHEMA
-
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
@@ -71,7 +65,6 @@ def do_run_migrations(connection):
         target_metadata=target_metadata,
         version_table_schema=settings.POSTGRES_SCHEMA,
         include_schemas=True,
-        include_name=filter_foreign_schemas,
     )
 
     with context.begin_transaction():
@@ -106,5 +99,4 @@ else:
             future=True,
         ),
     )
-
     asyncio.run(run_migrations_online(connectable))
