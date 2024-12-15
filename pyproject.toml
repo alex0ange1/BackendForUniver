@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "repaircars"
-version = "0.4.0"
+version = "1.0.0"
 description = ""
 authors = ["Kudryashov Alexander <kudryashoff568@mail.ru>"]
 readme = "README.md"
