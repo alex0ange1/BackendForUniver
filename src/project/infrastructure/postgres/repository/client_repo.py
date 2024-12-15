@@ -23,6 +23,15 @@ class ClientRepository:
         clients = await session.execute(text(query))
         return [ClientsSchema.model_validate(obj=client) for client in clients.mappings().all()]
 
+    async def get_user_by_email(self, session: AsyncSession, email: str) -> ClientsSchema:
+        query = (
+            select(self._collection)
+            .where(self._collection.email == email)
+        )
+
+        client = await session.scalar(query)
+
+        return ClientsSchema.model_validate(obj=client)
 
     async def add_client(self, client: ClientCreateSchema, session: AsyncSession) -> ClientsSchema:
         new_client = self._collection(**client.dict())
