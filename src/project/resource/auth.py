@@ -37,6 +37,6 @@ async def get_current_user(
 
 
 async def allow_only_admin(current_user: TokenData = Depends(get_current_user)):
-    if current_user.is_admin == False:
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access forbidden: Admins only")
     return current_user
