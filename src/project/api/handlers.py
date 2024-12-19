@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, HTTPException, Depends
 from project.infrastructure.postgres.repository.client_repo import ClientRepository
 from project.infrastructure.postgres.repository.car_repo import CarRepository
@@ -10,12 +12,13 @@ from project.infrastructure.postgres.repository.parts_4_car_repo import PartsFor
 from project.infrastructure.postgres.repository.receipt_repo import ReceiptRepository
 from project.infrastructure.postgres.repository.user_repo import UserRepository
 from project.infrastructure.postgres.repository.workers_able_service_repo import WorkersAbleToProvideServiceRepository
-
+from project.infrastructure.postgres.repository.receipt_repo import ReceiptRepository
 from project.infrastructure.postgres.database import PostgresDatabase
 from project.resource.auth import get_password_hash, allow_only_admin
 
 from project.schemas.clients import ClientsSchema, ClientCreateSchema
 from project.schemas.cars import CarsSchema, CarsCreateSchema
+from project.schemas.detailed_order import ReceiptDetailsSchema
 from project.schemas.parts import PartsSchema, PartsCreateSchema
 from project.schemas.users import UserSchema, UserCreateUpdateSchema, UserLoginSchema
 from project.schemas.workers import WorkersSchema, WorkersCreateSchema
@@ -24,6 +27,7 @@ from project.schemas.cars_status import CarsStatusSchema, CarsStatusCreateSchema
 from project.schemas.service_receipts import ServiceReceiptSchema, ServiceReceiptCreateSchema
 from project.schemas.parts_for_car import PartsForCarSchema, PartsForCarCreateSchema
 from project.schemas.receipts import ReceiptSchema, ReceiptCreateSchema
+
 from project.schemas.worker_able_service \
 import WorkersAbleToProvideServiceSchema, WorkersAbleToProvideServiceCreateSchema
 
@@ -87,6 +91,22 @@ async def get_all_clients() -> list[ClientsSchema]:
     return all_clients
 
 
+@router.get("/client/by-phone/{phone_number}", response_model=ClientsSchema)
+async def get_client_by_phone(phone_number: str) -> ClientsSchema:
+    client_repo = ClientRepository()
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        await client_repo.check_connection(session=session)
+
+        client = await client_repo.get_client_by_phone(phone_number=phone_number, session=session)
+
+        if client is None:
+            raise HTTPException(status_code=404, detail="Client not found")
+
+    return client
+
+
 @router.get("/client/{client_id}", response_model=ClientsSchema)
 async def get_client_by_id(client_id: int) -> ClientsSchema:
     client_repo = ClientRepository()
@@ -113,6 +133,31 @@ async def add_client(client: ClientCreateSchema, current_user: dict = Depends(al
 
     return new_client
 
+
+@router.put("/update_client/{client_id}", response_model=ClientsSchema)
+async def update_client(
+    client_id: int,
+    client_update: ClientCreateSchema,
+    current_user: dict = Depends(allow_only_admin)
+) -> ClientsSchema:
+    """
+    Update a client's information. Accessible only to admin users.
+    """
+    client_repo = ClientRepository()
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        await client_repo.check_connection(session=session)
+        try:
+            updated_client = await client_repo.update_client(
+                client_id=client_id,
+                update_data=client_update.dict(exclude_unset=True),
+                session=session
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+    return updated_client
 
 @router.delete("/delete_client/{client_id}", response_model=dict)
 async def delete_client(client_id: int, current_user: dict = Depends(allow_only_admin)) -> dict:
@@ -228,8 +273,8 @@ async def delete_worker(worker_id: int, current_user: dict = Depends(allow_only_
     return worker
 
 
-@router.post("/add_worker", response_model=WorkersSchema)
-async def add_worker(worker: WorkersCreateSchema, current_user: dict = Depends(allow_only_admin)) -> WorkersSchema:
+@router.post("/add_worker", response_model=WorkersSchema, dependencies=[Depends(allow_only_admin)])
+async def add_worker(worker: WorkersCreateSchema) -> WorkersSchema:
     worker_repo = WorkerRepository()
     database = PostgresDatabase()
 
@@ -515,7 +560,7 @@ async def delete_part_for_car(part_for_car_id: int,
 
 
 @router.get("/all_receipts", response_model=list[ReceiptSchema])
-async def get_all_receipts() -> list[ReceiptSchema]:
+async def get_all_receipts(_: dict = Depends(allow_only_admin)) -> list[ReceiptSchema]:
     receipt_repo = ReceiptRepository()
     database = PostgresDatabase()
 
@@ -624,3 +669,53 @@ async def delete_service_receipt(service_receipt_id: int,
             raise HTTPException(status_code=404, detail="Service receipt not found")
 
     return {"detail": "Service receipt deleted successfully"}
+
+
+@router.get("/receipts", response_model=list[ReceiptDetailsSchema])
+async def get_all_receipts_endpoint(_: dict = Depends(allow_only_admin)):
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        receipts = await get_all_receipts(session=session)
+
+    return receipts
+
+@router.get("/receipts/client/{client_id}", response_model=list[ReceiptDetailsSchema])
+async def get_receipts_by_client_id_endpoint(client_id: int,
+                                             _: dict = Depends(allow_only_admin)):
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        receipts = await ReceiptRepository.get_receipts_by_client_id(session=session, client_id=client_id)
+
+    return receipts
+
+@router.get("/receipts/date_range", response_model=list[ReceiptDetailsSchema])
+async def get_receipts_by_date_range_endpoint(start_date: str, end_date: str,
+                                              _: dict = Depends(allow_only_admin)):
+    database = PostgresDatabase()
+    try:
+        start_date_obj = date.fromisoformat(start_date)
+        end_date_obj = date.fromisoformat(end_date)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.") from e
+    async with database.session() as session:
+        receipts = await ReceiptRepository.get_receipts_by_date_range(
+            session=session, start_date=start_date_obj, end_date=end_date_obj
+        )
+    return receipts
+
+@router.get("/receipts/date_range_client", response_model=list[ReceiptDetailsSchema])
+async def get_receipts_by_date_range_and_client(start_date: str, end_date: str, client_id: int,
+                                                _: dict = Depends(allow_only_admin)):
+    database = PostgresDatabase()
+    try:
+        start_date_obj = date.fromisoformat(start_date)
+        end_date_obj = date.fromisoformat(end_date)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.") from e
+    async with database.session() as session:
+        receipts = await ReceiptRepository.get_receipts_by_date_range_and_client(
+            session=session, start_date=start_date_obj, end_date=end_date_obj, client_id=client_id
+        )
+    return receipts

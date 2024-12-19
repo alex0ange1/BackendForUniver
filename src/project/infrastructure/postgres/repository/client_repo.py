@@ -40,6 +40,24 @@ class ClientRepository:
         await session.refresh(new_client)
         return ClientsSchema.model_validate(new_client)
 
+    async def update_client(self, client_id: int, update_data: dict, session: AsyncSession) -> ClientsSchema:
+        query = select(self._collection).where(self._collection.id == client_id)
+        result = await session.execute(query)
+        client = result.scalar_one_or_none()
+
+        if not client:
+            raise ValueError(f"Client with ID {client_id} not found")
+
+        for key, value in update_data.items():
+            if hasattr(client, key):
+                setattr(client, key, value)
+
+        session.add(client)
+        await session.commit()
+        await session.refresh(client)
+
+        return ClientsSchema.model_validate(client)
+
     async def delete_client(self, client_id: int, session: AsyncSession) -> bool:
         query = select(self._collection).where(self._collection.id == client_id)
         result = await session.execute(query)
@@ -51,6 +69,12 @@ class ClientRepository:
 
     async def get_client_by_id(self, client_id: int, session: AsyncSession) -> ClientsSchema:
         query = select(self._collection).where(self._collection.id == client_id)
+        result = await session.execute(query)
+        client = result.scalar_one_or_none()
+        return ClientsSchema.model_validate(client)
+
+    async def get_client_by_phone(self, phone_number: str, session: AsyncSession) -> ClientsSchema:
+        query = select(self._collection).where(self._collection.phone_number == phone_number)
         result = await session.execute(query)
         client = result.scalar_one_or_none()
 

@@ -101,9 +101,10 @@ class PartsForCar(Base):
 class Receipt(Base):
     __tablename__ = "receipt"
 
-    service_receipt_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients_list.id"), nullable=False)
-    car_sts: Mapped[str] = mapped_column(ForeignKey("cars_list.sts"), nullable=False)
+    service_receipt_id: Mapped[int] = mapped_column(ForeignKey("service_receipt.id"), nullable=False)
+    car_id:Mapped[int] = mapped_column(ForeignKey("cars_list.id"), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     cost: Mapped[int] = mapped_column(nullable=False)
 
@@ -114,6 +115,3 @@ class ServiceReceipt(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     service_id: Mapped[int] = mapped_column(ForeignKey("service.id"), nullable=False)
     part_id: Mapped[int] = mapped_column(ForeignKey("parts_list.id"), nullable=False)
-    quantity_of_parts: Mapped[int] = mapped_column(nullable=False)
-    part_cost: Mapped[int] = mapped_column(ForeignKey("parts_list.selling_price"), nullable=False)
-    selling_cost: Mapped[int] = mapped_column(ForeignKey("service.service_cost"), nullable=False)
