@@ -1,6 +1,6 @@
 from typing import Type
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
+from sqlalchemy import text, select, update
 
 from project.schemas.workers import WorkersSchema, WorkersCreateSchema
 from project.infrastructure.postgres.models import Workers
@@ -31,6 +31,25 @@ class WorkerRepository:
         worker = result.scalar_one_or_none()
         return WorkersSchema.model_validate(worker)
 
+
+    async def update_worker(self, worker_id: int, worker_data: WorkersCreateSchema,
+                            session: AsyncSession) -> WorkersSchema:
+        query = (
+            update(self._collection)
+                .where(self._collection.id == worker_id)
+                .values(**worker_data.dict())
+                .returning(self._collection)
+        )
+
+        result = await session.execute(query)
+        updated_worker = result.scalar_one_or_none()
+
+        if updated_worker:
+            await session.commit()
+            return WorkersSchema.model_validate(updated_worker)
+        else:
+            raise ValueError("Worker not found")
+
     async def delete_worker(self, worker_id: int, session: AsyncSession) -> bool:
         query = select(self._collection).where(self._collection.id == worker_id)
         result = await session.execute(query)
@@ -41,3 +60,4 @@ class WorkerRepository:
             await session.commit()
             return True
         return False
+

@@ -285,6 +285,21 @@ async def add_worker(worker: WorkersCreateSchema) -> WorkersSchema:
     return new_worker
 
 
+@router.put("/update_worker/{worker_id}", response_model=WorkersSchema, dependencies=[Depends(allow_only_admin)])
+async def update_worker(worker_id: int, worker: WorkersCreateSchema) -> WorkersSchema:
+    worker_repo = WorkerRepository()
+    database = PostgresDatabase()
+
+    async with database.session() as session:
+        await worker_repo.check_connection(session=session)
+
+        try:
+            updated_worker = await worker_repo.update_worker(worker_id=worker_id, worker_data=worker, session=session)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Worker not found")
+
+    return updated_worker
+
 @router.get("/all_parts", response_model=list[PartsSchema])
 async def get_all_parts() -> list[PartsSchema]:
     parts_repo = PartRepository()
@@ -690,7 +705,7 @@ async def get_receipts_by_client_id_endpoint(client_id: int,
 
     return receipts
 
-@router.get("/receipts/date_range", response_model=list[ReceiptDetailsSchema])
+@router.get("/receipts/date_range/{start_date}/{end_date}", response_model=list[ReceiptDetailsSchema])
 async def get_receipts_by_date_range_endpoint(start_date: str, end_date: str,
                                               _: dict = Depends(allow_only_admin)):
     database = PostgresDatabase()
@@ -705,7 +720,7 @@ async def get_receipts_by_date_range_endpoint(start_date: str, end_date: str,
         )
     return receipts
 
-@router.get("/receipts/date_range_client", response_model=list[ReceiptDetailsSchema])
+@router.get("/receipts/date_range_client/{client_id}", response_model=list[ReceiptDetailsSchema])
 async def get_receipts_by_date_range_and_client(start_date: str, end_date: str, client_id: int,
                                                 _: dict = Depends(allow_only_admin)):
     database = PostgresDatabase()
